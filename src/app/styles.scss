@@ -1,0 +1,17 @@
+@use "../../node_modules/normalize.css/normalize.css";
+@import url('https://fonts.googleapis.com/css2?family=Orbitron&display=swap');
+
+body {
+    font-family     : 'Orbitron', Verdana, Geneva, Tahoma, sans-serif;
+    width           : 100vw;
+    height          : 100vh;
+    background-color: mediumaquamarine;
+    overflow        : hidden;
+}
+
+.h1 {
+    font-size     : 4em;
+    font-weight   : bold;
+    padding-top   : 1rem;
+    padding-bottom: 1rem;
+}
