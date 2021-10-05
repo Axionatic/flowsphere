@@ -9,9 +9,23 @@ body {
     overflow        : hidden;
 }
 
+main {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
 .h1 {
     font-size     : 4em;
     font-weight   : bold;
     padding-top   : 1rem;
     padding-bottom: 1rem;
+    text-align: center;
+}
+
+#p5_container {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
 }
