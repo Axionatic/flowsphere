@@ -1,3 +1,3 @@
 import "./app/styles.scss";
-import { flowsphere } from "./app/flowsphere";
+import flowsphere from "./app/flowsphere";
 flowsphere();
