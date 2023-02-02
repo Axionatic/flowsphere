@@ -1,10 +1,10 @@
 import p5 from "p5";
 
+import { createNoise2D } from "simplex-noise";
 import { cordic, bhaskara, diagonal } from "./fast-trigs";
-import { TRIG_SIN, TRIG_COS, TRIG_BOTH } from "./fast-trigs";
-import { loopingNoise } from "./flowsphere";
 
 const p5Container = document.getElementById('p5_container') ?? undefined;
+const noise2D = createNoise2D();
 const FRAMERATE = 60;
 const BLOB_VERTICES = 50;
 const BASE_RADIUS = 200;
@@ -27,18 +27,17 @@ export function graphSketch(p) {
     for (let i = 0; i <= 1000; i++) {
       const x = p.TWO_PI * 4 * (i / 1000) - p.TWO_PI * 2;
       const cord = cordic(x);
-      const bh = bhaskara(x);
       const diag = diagonal(x);
       p.stroke(255, 100, 50);
       p.point((x + p.TWO_PI * 2) * 50, 100 - Math.sin(x) * 100);
-      p.point((x + p.TWO_PI * 2) * 50, 300 - cord[TRIG_SIN] * 100);
-      p.point((x + p.TWO_PI * 2) * 50, 500 - bh[TRIG_SIN] * 100);
-      p.point((x + p.TWO_PI * 2) * 50, 700 - diag[TRIG_SIN] * 100);
+      p.point((x + p.TWO_PI * 2) * 50, 300 - cord[0] * 100);
+      p.point((x + p.TWO_PI * 2) * 50, 500 - bhaskara(x) * 100);
+      p.point((x + p.TWO_PI * 2) * 50, 700 - diag[0] * 100);
       p.stroke(50, 255, 100);
       p.point((x + p.TWO_PI * 2) * 50, 100 - Math.cos(x) * 100);
-      p.point((x + p.TWO_PI * 2) * 50, 300 - cord[TRIG_COS] * 100);
-      p.point((x + p.TWO_PI * 2) * 50, 500 - bh[TRIG_COS] * 100);
-      p.point((x + p.TWO_PI * 2) * 50, 700 - diag[TRIG_COS] * 100);
+      p.point((x + p.TWO_PI * 2) * 50, 300 - cord[1] * 100);
+      p.point((x + p.TWO_PI * 2) * 50, 500 - bhaskara(x + p.HALF_PI) * 100);
+      p.point((x + p.TWO_PI * 2) * 50, 700 - diag[1] * 100);
       p.stroke(0);
       p.line(p.TWO_PI * 2 * 50, 0, p.TWO_PI * 2 * 50, 1200);
     }
@@ -51,6 +50,14 @@ export function graphSketch(p) {
  * @param {p5} p
  */
 export function loopSketch(p) {
+  /**
+   * Get a random noise value that loops seamlessly over time.
+   * Achieved by moving through 2D noise along the circumference of a unit circle
+   * @param {number} x Treated as radians - i.e. output will loop every `x / 2π`.
+   * @returns {number} A value between -1 and 1
+   */
+  const loopingNoise = (x) => noise2D(bhaskara(x), bhaskara(x + p.HALF_PI));
+
   p.setup = function () {
     p.frameRate(FRAMERATE);
     p.createCanvas(800, 800);
