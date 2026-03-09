@@ -45,7 +45,7 @@ class Particle {
     vz = applyFriction(vz);
     
     // sometimes particles get stuck in the dead sectors for some reason
-    if ((vx == 0) && (vy == 0) && (vz == 0)) {
+    if (abs(vx) < 0.0001 && abs(vy) < 0.0001 && abs(vz) < 0.0001) {
       sec = getSpawnSector();
       setDefaults();
     }
@@ -54,9 +54,8 @@ class Particle {
   void display() {
     // the faster a particle is moving, the more colourful it gets
     // use a bit of cleverness to make particles fade to grey rather than black when they slow down
-    PVector v = new PVector(vx, vy, vz);
-    v.div(SQRT3); // magnitude of the max-velocity diagonal vector (1,1,1)
-    float f = map(v.mag(), 0, 1, COLOR_MAX/2, 0);
+    float speed = sqrt(vx*vx + vy*vy + vz*vz) / sqrt(3.0);
+    float f = map(speed, 0, 1, 127, 0);
     
     noStroke();
     fill(f,f,f);
@@ -106,7 +105,7 @@ class Particle {
   boolean checkWrapAround() {
     // if we have left the flowsphere, wrap around
     if (sq(px) + sq(py) + sq(pz) > sq(fieldRadius)) {
-      px *= -1; //<>//
+      px *= -1;
       py *= -1;
       pz *= -1;
       

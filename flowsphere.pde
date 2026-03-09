@@ -18,7 +18,7 @@ void setup() {
   size(1440, 900, P3D);
   //fullScreen(P3D);
   frameRate(60);
-  colorMode(RGB, COLOR_MAX);
+  colorMode(RGB, 255);
   rot = new Quaternion();
   rotateAround = new PVector(0,0,0);
   eulers = new PVector(0,0,0);
@@ -29,7 +29,8 @@ void setup() {
   // build sector arrays. Maybe a bit wasteful to have all these empty sectors,
   // but it saves a lot of trouble in calculating particle movement between sectors
   secCount = int((fieldRadius*2) / SECTOR_RES) + (FIELD_PADDING * 2);
-  sectors = new Sector[secCount+1][secCount+1][secCount+1]; // counting is hard
+  int secDim = secCount + 1; // loop is inclusive on both ends: 0..secCount
+  sectors = new Sector[secDim][secDim][secDim];
   float radSectors = secCount / 2.0;
   int i = 0;
   for (float x = -radSectors; x <= radSectors; x++) {
@@ -61,11 +62,18 @@ void setup() {
 
 Sector getSpawnSector() {
   Sector spawn = sectors[0][0][0];
-  // lazy random starting location. Probably should find a better way
   if (P_RANDOM_SPAWN) {
-    while (!spawn.active) {
-      spawn = sectors[round(random(-RANDOM_FIX,secCount+RANDOM_FIX))][round(random(-RANDOM_FIX,secCount+RANDOM_FIX))][round(random(-RANDOM_FIX,secCount+RANDOM_FIX))];
-    }    
+    int maxTries = secCount * secCount * secCount;
+    int tries = 0;
+    while (!spawn.active && tries < maxTries) {
+      spawn = sectors[int(random(secCount+1))][int(random(secCount+1))][int(random(secCount+1))];
+      tries++;
+    }
+    if (!spawn.active) {
+      // fallback to centre if no active sector found
+      int centre = int((secCount+1) / 2);
+      spawn = sectors[centre][centre][centre];
+    }
   }
   else {
     int centre = int((secCount+1) / 2);
@@ -75,7 +83,7 @@ Sector getSpawnSector() {
 }
 
 void draw() {
-  background(COLOR_MAX);
+  background(255);
   if (DEBUG && frameCount % 30 == 0) {println(frameRate);}
   if (!rotApplied) {
     // rotation vector is created by moving the mouse 1 or more pixels 
@@ -86,6 +94,7 @@ void draw() {
     Quaternion rotNext = new Quaternion(a, rotateAround);
      //... then apply it!
     rot = rot.mult(rotNext);
+    rot.normalize();
     // and translate into euler angles
     eulers = rot.eulers();
     // remember not to apply the same rotation more than once
@@ -94,9 +103,10 @@ void draw() {
   
   pushMatrix();
     translate(width/2, height/2, 0);
-    rotateZ(eulers.z); // why do we have to rotate in this order?
-    rotateY(eulers.y); // I actually have no idea!
-    rotateX(eulers.x); // It works, though...
+    // ZYX extrinsic Euler convention (yaw-pitch-roll), matching the eulers() decomposition
+    rotateZ(eulers.z);
+    rotateY(eulers.y);
+    rotateX(eulers.x);
     scale(sketchScale * ZOOM_STEP);
 
     // process sectors
@@ -105,7 +115,7 @@ void draw() {
         for (int k = 0; k <= secCount; k++) {
           Sector s = sectors[i][j][k];
           if (s.active) {
-            //s.display(); //uncomment to show sector force vectors
+            if (DEBUG) { s.display(); }
             s.update();
           }
         }

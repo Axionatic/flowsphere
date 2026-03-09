@@ -25,12 +25,13 @@ public class Sector {
   // calc force vector using Perlin Noise
   void update() {
     // noise returns 0->1, we want -0.5->0.5
-    float f = frameCount;
-    float n1 = (noise((px+f)*NOISE_SPEED, (py+f)*NOISE_SPEED, (pz+f)*NOISE_SPEED) - 0.5) * NOISE_INF;
-    float n2 = (noise((px+f)*NOISE_SPEED + NOISE_OFFSET, (py+f)*NOISE_SPEED + NOISE_OFFSET, (pz+f)*NOISE_SPEED + NOISE_OFFSET) - 0.5) * NOISE_INF;
-    float n3 = (noise((px+f)*NOISE_SPEED + NOISE_OFFSET*2, (py+f)*NOISE_SPEED + NOISE_OFFSET*2, (pz+f)*NOISE_SPEED + NOISE_OFFSET*2) - 0.5) * NOISE_INF;
-    
-    // noise is supposed to average around 0.5, but for some reason it seems more like 0.4. This should fix it
+    float t = frameCount;
+    float n1 = (noise((px+t)*NOISE_SPEED, (py+t)*NOISE_SPEED, (pz+t)*NOISE_SPEED) - 0.5) * NOISE_INFLUENCE;
+    float n2 = (noise((px+t)*NOISE_SPEED + NOISE_OFFSET, (py+t)*NOISE_SPEED + NOISE_OFFSET, (pz+t)*NOISE_SPEED + NOISE_OFFSET) - 0.5) * NOISE_INFLUENCE;
+    float n3 = (noise((px+t)*NOISE_SPEED + NOISE_OFFSET*2, (py+t)*NOISE_SPEED + NOISE_OFFSET*2, (pz+t)*NOISE_SPEED + NOISE_OFFSET*2) - 0.5) * NOISE_INFLUENCE;
+
+    // Cross-subtraction keeps net force near zero: each n contributes positively to one axis
+    // and negatively to another, so the sum (fx+fy+fz) = 0 by construction.
     fx = n1 - n2;
     fy = n2 - n3;
     fz = n3 - n1;

@@ -33,7 +33,7 @@ public class Quaternion {
       return new Quaternion(x, y, z, w);
   }
   
-  public boolean equal(Quaternion q) {
+  public boolean equals(Quaternion q) {
       return x == q.x && y == q.y && z == q.z && w == q.w;
   }
   
@@ -54,6 +54,12 @@ public class Quaternion {
       z = axis.z * hsin;
   }
   
+  public Quaternion inverse() {
+    Quaternion conj = conj();
+    float normSq = w*w + x*x + y*y + z*z;
+    return conj.mult(1/normSq);
+  }
+
   public Quaternion conj() {
       Quaternion ret = new Quaternion();
       ret.x = -x;
@@ -113,5 +119,28 @@ public class Quaternion {
     y *= factor;
     z *= factor;
     w *= factor;
+  }
+
+  // return rotation represented as an angle around an axis
+  public AngleAxis getAngleAxis() {
+    if (abs(x) < 0.0001 && abs(y) < 0.0001 && abs(z) < 0.0001 && abs(w - 1) < 0.0001) {
+      // quaternion is identity. Rotate around Y by 0 as a safe default
+      return new AngleAxis(0, new PVector(0,1,0));
+    } else {
+      float angle = acos(w) * 2;
+      float f = sin(angle/2);
+      PVector axis = new PVector(x/f, y/f, z/f);
+      return new AngleAxis(angle, axis);
+    }
+  }
+}
+
+// small class to represent rotation as an angle around an axis
+public class AngleAxis {
+  float angle;
+  PVector axis;
+  public AngleAxis(float f, PVector p) {
+    angle = f;
+    axis = p;
   }
 }
