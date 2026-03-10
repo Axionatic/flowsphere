@@ -1,137 +1,135 @@
 // licensed under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
 // https://creativecommons.org/licenses/by-sa/4.0/
 
-// particles get pushed around the flowsphere
+// Particles get pushed around the flowsphere by sector force vectors.
 class Particle {
-  Sector sec;
-  // should these be PVectors? But inside all our loops this is probably more efficient
-  float px, py, pz; // pos
-  float vx, vy, vz; // velocity
-  
-  Particle(Sector spawn) {
-    sec = spawn;
-    setDefaults();
+  private FlowField field;
+  private Sector sector;
+  private float posX, posY, posZ;
+  private float velX, velY, velZ;
+
+  Particle(FlowField field, Sector spawn) {
+    this.field = field;
+    this.sector = spawn;
+    resetPosition();
   }
-  
-  void setDefaults() {
-    // random starting position
-    float halfSec = SECTOR_RES / 2.0;
-    px = sec.px + random(-halfSec, halfSec);
-    py = sec.py + random(-halfSec, halfSec);
-    pz = sec.pz + random(-halfSec, halfSec);
-    
-    //starting velocity
-    vx = random(P_MIN_VEL, P_MAX_VEL);
-    vy = random(P_MIN_VEL, P_MAX_VEL);
-    vz = random(P_MIN_VEL, P_MAX_VEL);
+
+  private void resetPosition() {
+    float halfSector = SECTOR_RES / 2.0;
+    posX = sector.getPositionX() + random(-halfSector, halfSector);
+    posY = sector.getPositionY() + random(-halfSector, halfSector);
+    posZ = sector.getPositionZ() + random(-halfSector, halfSector);
+
+    velX = random(PARTICLE_MIN_VELOCITY, PARTICLE_MAX_VELOCITY);
+    velY = random(PARTICLE_MIN_VELOCITY, PARTICLE_MAX_VELOCITY);
+    velZ = random(PARTICLE_MIN_VELOCITY, PARTICLE_MAX_VELOCITY);
   }
-  
+
   void update() {
-    vx = constrain(vx + sec.fx, P_MIN_VEL, P_MAX_VEL);
-    vy = constrain(vy + sec.fy, P_MIN_VEL, P_MAX_VEL);
-    vz = constrain(vz + sec.fz, P_MIN_VEL, P_MAX_VEL);
-    px += vx;
-    py += vy;
-    pz += vz;
-    
-    // check if we moved to a new sector or if we need to wrap around
-    if (!checkWrapAround()) {
-      checkMoveNewSec();
+    velX = constrain(velX + sector.getForceX(), PARTICLE_MIN_VELOCITY, PARTICLE_MAX_VELOCITY);
+    velY = constrain(velY + sector.getForceY(), PARTICLE_MIN_VELOCITY, PARTICLE_MAX_VELOCITY);
+    velZ = constrain(velZ + sector.getForceZ(), PARTICLE_MIN_VELOCITY, PARTICLE_MAX_VELOCITY);
+    posX += velX;
+    posY += velY;
+    posZ += velZ;
+
+    // Check if we moved to a new sector or if we need to wrap around
+    if (!hasWrappedAround()) {
+      hasMovedSector();
     }
-    
-    // decay velocity according to friction
-    vx = applyFriction(vx);
-    vy = applyFriction(vy);
-    vz = applyFriction(vz);
-    
-    // sometimes particles get stuck in the dead sectors for some reason
-    if (abs(vx) < 0.0001 && abs(vy) < 0.0001 && abs(vz) < 0.0001) {
-      sec = getSpawnSector();
-      setDefaults();
+
+    // Decay velocity according to friction
+    velX = applyFriction(velX);
+    velY = applyFriction(velY);
+    velZ = applyFriction(velZ);
+
+    // Particles in inactive sectors receive no force, so friction brings them to a halt.
+    // Respawn to keep the simulation populated.
+    if (abs(velX) < STUCK_VELOCITY_THRESHOLD && abs(velY) < STUCK_VELOCITY_THRESHOLD && abs(velZ) < STUCK_VELOCITY_THRESHOLD) {
+      sector = field.getRandomActiveSector();
+      resetPosition();
     }
   }
-  
+
   void display() {
-    // the faster a particle is moving, the more colourful it gets
-    // use a bit of cleverness to make particles fade to grey rather than black when they slow down
-    float speed = sqrt(vx*vx + vy*vy + vz*vz) / sqrt(3.0);
-    float f = map(speed, 0, 1, 127, 0);
-    
+    // Map speed to greyscale: fast particles are dark, slow ones fade to mid-grey
+    float speed = sqrt(velX*velX + velY*velY + velZ*velZ) / MAX_SPEED_NORMALIZER;
+    float grey = map(speed, 0, 1, SLOW_PARTICLE_GREY, 0);
+
     noStroke();
-    fill(f,f,f);
-    
+    fill(grey, grey, grey);
+
     pushMatrix();
-      translate(px, py, pz);
-      sphere(P_SIZE);
+      translate(posX, posY, posZ);
+      sphere(PARTICLE_SIZE);
     popMatrix();
   }
-  
-  // check if we have moved to a new sector
-  boolean checkMoveNewSec() {
-    int movedX = checkNewSecForAxis(px, sec.px);
-    int movedY = checkNewSecForAxis(py, sec.py);
-    int movedZ = checkNewSecForAxis(pz, sec.pz);
-    
+
+  // Check if the particle has crossed into a neighbouring sector
+  private boolean hasMovedSector() {
+    int movedX = sectorAxisOffset(posX, sector.getPositionX());
+    int movedY = sectorAxisOffset(posY, sector.getPositionY());
+    int movedZ = sectorAxisOffset(posZ, sector.getPositionZ());
+
     if ((movedX != 0) || (movedY != 0) || (movedZ != 0)) {
-      movedX += sec.ix;
-      movedY += sec.iy;
-      movedZ += sec.iz;
-      // There's some kind of weird edge case where particles occasionally get put out of bounds
-      if ((movedX < 0) || (movedX > secCount) ||
-          (movedY < 0) || (movedY > secCount) ||
-          (movedZ < 0) || (movedZ > secCount)) {
-        sec = getSpawnSector();
-        setDefaults();
+      int newGridX = movedX + sector.getGridX();
+      int newGridY = movedY + sector.getGridY();
+      int newGridZ = movedZ + sector.getGridZ();
+
+      // Rounding during sector-transition calculation can produce an out-of-bounds index
+      // at the grid boundary. Respawn as a safe recovery.
+      int sectorCount = field.getSectorCount();
+      if ((newGridX < 0) || (newGridX > sectorCount) ||
+          (newGridY < 0) || (newGridY > sectorCount) ||
+          (newGridZ < 0) || (newGridZ > sectorCount)) {
+        sector = field.getRandomActiveSector();
+        resetPosition();
       }
       else {
-        sec = sectors[movedX][movedY][movedZ];
+        sector = field.getSectorAt(newGridX, newGridY, newGridZ);
       }
       return true;
     }
     return false;
   }
-  
-  int checkNewSecForAxis(float pos, float secPos) {
-    float hs = SECTOR_RES / 2.0;
-    if (pos > secPos + hs) {
+
+  private int sectorAxisOffset(float pos, float sectorPos) {
+    float halfSector = SECTOR_RES / 2.0;
+    if (pos > sectorPos + halfSector) {
       return 1;
     }
-    else if (pos < secPos - hs) {
+    else if (pos < sectorPos - halfSector) {
       return -1;
     }
     return 0;
   }
-  
-  boolean checkWrapAround() {
-    // if we have left the flowsphere, wrap around
-    if (sq(px) + sq(py) + sq(pz) > sq(fieldRadius)) {
-      px *= -1;
-      py *= -1;
-      pz *= -1;
-      
-      // make sure we are properly inside the new sector
-      px *= P_WRAP_BUMP;
-      py *= P_WRAP_BUMP;
-      pz *= P_WRAP_BUMP;
-      
-      // find indices of new sector
-      float baseline = (sectors[0][0][0].px * -1) + (SECTOR_RES / 2); // py or pz would also work here
-      int newSecX = int((baseline + px) / SECTOR_RES);
-      int newSecY = int((baseline + py) / SECTOR_RES);
-      int newSecZ = int((baseline + pz) / SECTOR_RES);
-      sec = sectors[newSecX][newSecY][newSecZ];
+
+  private boolean hasWrappedAround() {
+    float radius = field.getRadius();
+    if (sq(posX) + sq(posY) + sq(posZ) > sq(radius)) {
+      // Teleport to the opposite side of the sphere, slightly inward
+      posX *= -PARTICLE_WRAP_BUMP;
+      posY *= -PARTICLE_WRAP_BUMP;
+      posZ *= -PARTICLE_WRAP_BUMP;
+
+      // Find the sector at the wrapped-around position
+      float baseline = (-field.getSectorAt(0, 0, 0).getPositionX()) + (SECTOR_RES / 2);
+      int newSecX = int((baseline + posX) / SECTOR_RES);
+      int newSecY = int((baseline + posY) / SECTOR_RES);
+      int newSecZ = int((baseline + posZ) / SECTOR_RES);
+      sector = field.getSectorAt(newSecX, newSecY, newSecZ);
       return true;
     }
     return false;
   }
-  
-  // cheat a bit with friction - don't let the particles come to a *complete* stop
-  float applyFriction(float v) {
-    if (v > P_FRICTION) {
-      return v - P_FRICTION;
+
+  // Reduces velocity magnitude by PARTICLE_FRICTION, snapping to zero when below the threshold
+  private float applyFriction(float velocity) {
+    if (velocity > PARTICLE_FRICTION) {
+      return velocity - PARTICLE_FRICTION;
     }
-    else if (v < -P_FRICTION) {
-      return v + P_FRICTION;
+    else if (velocity < -PARTICLE_FRICTION) {
+      return velocity + PARTICLE_FRICTION;
     }
     return 0;
   }

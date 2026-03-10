@@ -1,54 +1,67 @@
 // licensed under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
 // https://creativecommons.org/licenses/by-sa/4.0/
 
-// cubic sectors of the flowsphere. Have Perlin Noise force vectors that act on particles
-public class Sector {
-  // should these be PVectors? But inside all our loops this is probably more efficient
-  // (duplicating data here for the sake of CPU cycles)
-  int ix, iy, iz; // index in sectors[][][]
-  float px, py, pz; // pos
-  float fx, fy, fz; // force
-  boolean active;
-  
+// Cubic sectors of the flowsphere. Have Perlin Noise force vectors that act on particles.
+class Sector {
   // Flat floats instead of PVectors to avoid per-frame object allocation in hot loops.
-  Sector(int ix, int iy, int iz, float px, float py, float pz, boolean active) {
-    this.ix = ix;
-    this.iy = iy;
-    this.iz = iz;
-    this.px = px;
-    this.py = py;
-    this.pz = pz;
-    this.active = active;
-    fx = fy = fz = 0;
-  }
-  
-  // calc force vector using Perlin Noise
-  void update() {
-    // noise returns 0->1, we want -0.5->0.5
-    float t = frameCount;
-    float n1 = (noise((px+t)*NOISE_SPEED, (py+t)*NOISE_SPEED, (pz+t)*NOISE_SPEED) - 0.5) * NOISE_INFLUENCE;
-    float n2 = (noise((px+t)*NOISE_SPEED + NOISE_OFFSET, (py+t)*NOISE_SPEED + NOISE_OFFSET, (pz+t)*NOISE_SPEED + NOISE_OFFSET) - 0.5) * NOISE_INFLUENCE;
-    float n3 = (noise((px+t)*NOISE_SPEED + NOISE_OFFSET*2, (py+t)*NOISE_SPEED + NOISE_OFFSET*2, (pz+t)*NOISE_SPEED + NOISE_OFFSET*2) - 0.5) * NOISE_INFLUENCE;
+  private final int gridX, gridY, gridZ;
+  private final float posX, posY, posZ;
+  private float forceX, forceY, forceZ;
+  private final boolean active;
 
-    // Cross-subtraction keeps net force near zero: each n contributes positively to one axis
-    // and negatively to another, so the sum (fx+fy+fz) = 0 by construction.
-    fx = n1 - n2;
-    fy = n2 - n3;
-    fz = n3 - n1;
+  Sector(int gridX, int gridY, int gridZ, float posX, float posY, float posZ, boolean active) {
+    this.gridX = gridX;
+    this.gridY = gridY;
+    this.gridZ = gridZ;
+    this.posX = posX;
+    this.posY = posY;
+    this.posZ = posZ;
+    this.active = active;
+    forceX = forceY = forceZ = 0;
   }
-  
+
+  void update() {
+    float t = frameCount;
+    float n1 = sampleNoise(posX, posY, posZ, t, 0);
+    float n2 = sampleNoise(posX, posY, posZ, t, NOISE_OFFSET);
+    float n3 = sampleNoise(posX, posY, posZ, t, NOISE_OFFSET * 2);
+
+    // Cross-subtraction keeps net force near zero: each sample contributes positively to one
+    // axis and negatively to another, so the sum (forceX+forceY+forceZ) = 0 by construction.
+    forceX = n1 - n2;
+    forceY = n2 - n3;
+    forceZ = n3 - n1;
+  }
+
+  private float sampleNoise(float x, float y, float z, float time, float offset) {
+    return (noise((x + time) * NOISE_SPEED + offset,
+                  (y + time) * NOISE_SPEED + offset,
+                  (z + time) * NOISE_SPEED + offset) - NOISE_CENTER_OFFSET) * NOISE_INFLUENCE;
+  }
+
   void display() {
     pushMatrix();
-      float sr = SECTOR_RES / 2.0;
-      float lx = map(fx,-0.5,0.5,-sr, sr);
-      float ly = map(fy,-0.5,0.5,-sr, sr);
-      float lz = map(fz,-0.5,0.5,-sr, sr);
-      
-      translate(px, py, pz);
+      float halfRes = SECTOR_RES / 2.0;
+      float lineX = map(forceX, -0.5, 0.5, -halfRes, halfRes);
+      float lineY = map(forceY, -0.5, 0.5, -halfRes, halfRes);
+      float lineZ = map(forceZ, -0.5, 0.5, -halfRes, halfRes);
+
+      translate(posX, posY, posZ);
       strokeWeight(1);
-      line(0,0,0,lx,ly,lz);
+      line(0, 0, 0, lineX, lineY, lineZ);
       strokeWeight(3);
-      point(lx,ly,lz);
+      point(lineX, lineY, lineZ);
     popMatrix();
   }
+
+  int getGridX() { return gridX; }
+  int getGridY() { return gridY; }
+  int getGridZ() { return gridZ; }
+  float getPositionX() { return posX; }
+  float getPositionY() { return posY; }
+  float getPositionZ() { return posZ; }
+  float getForceX() { return forceX; }
+  float getForceY() { return forceY; }
+  float getForceZ() { return forceZ; }
+  boolean isActive() { return active; }
 }
